@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigate, Link } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import Services from './components/Services';
@@ -70,7 +70,6 @@ function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { user, loading } = useAuth();
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
-  const navigate = useNavigate();
 
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
@@ -162,12 +161,12 @@ function App() {
                       ))}
                     </div>
                     <div className="flex justify-center">
-                      <button
-                        onClick={() => navigate('/shop')}
+                      <Link
+                        to="/shop"
                         className="bg-gold-500 text-black px-8 py-3 rounded font-bold text-lg hover:bg-gold-600 transition-colors shadow-lg"
                       >
                         See More
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 </section>
