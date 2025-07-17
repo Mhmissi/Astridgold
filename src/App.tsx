@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import Services from './components/Services';
@@ -19,7 +19,7 @@ import PasswordReset from './components/PasswordReset';
 import UserProfile from './components/UserProfile';
 import OrderHistory from './components/OrderHistory';
 import { db } from './firebase';
-import { doc, getDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, Timestamp, getDocs } from 'firebase/firestore';
 import { Product } from './components/Shop';
 
 function ScrollToSectionOnHome() {
@@ -69,10 +69,21 @@ function App() {
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { user, loading } = useAuth();
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    // Fetch first 4 products for home page
+    const fetchFeatured = async () => {
+      const snap = await getDocs(collection(db, 'products'));
+      setFeaturedProducts(snap.docs.slice(0, 4).map(doc => ({ ...doc.data(), id: doc.id } as Product)));
+    };
+    fetchFeatured();
+  }, []);
 
   const handleAddToCart = (product: Product) => {
     setCart((prev: Product[]) => [...prev, product]);
@@ -132,11 +143,40 @@ function App() {
               <>
                 <Hero />
                 <Services />
-                <LuxuryWatches />
+                {/* Featured Products Section */}
+                <section className="py-16 bg-black">
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <h2 className="text-3xl font-bold font-serif text-gold-400 mb-8 text-center">Featured Products</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+                      {featuredProducts.map(product => (
+                        <div key={product.id} className="bg-gray-900 rounded-xl shadow-lg overflow-hidden flex flex-col border-2 border-gold-900 hover:border-gold-500 transition-all duration-200">
+                          <img src={product.mainImage} alt={product.name} className="h-48 w-full object-cover" />
+                          <div className="p-4 flex-1 flex flex-col">
+                            <h3 className="text-lg font-bold font-serif text-gold-400 mb-2">{product.name}</h3>
+                            <p className="text-white font-body mb-2">{product.description}</p>
+                            <div className="mt-auto">
+                              <span className="text-gold-400 font-bold text-lg">{product.price}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-center">
+                      <button
+                        onClick={() => navigate('/shop')}
+                        className="bg-gold-500 text-black px-8 py-3 rounded font-bold text-lg hover:bg-gold-600 transition-colors shadow-lg"
+                      >
+                        See More
+                      </button>
+                    </div>
+                  </div>
+                </section>
+                {/* Remove or comment out the following: LuxuryWatches, About, Valuation, Testimonials, Contact */}
+                {/* <LuxuryWatches />
                 <About />
                 <Valuation />
                 <Testimonials />
-                <Contact />
+                <Contact /> */}
                 <Footer />
               </>
             }
