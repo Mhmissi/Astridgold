@@ -114,6 +114,7 @@ const Admin: React.FC = () => {
     price: '',
   });
   const [previews, setPreviews] = useState<string[]>([]);
+  const [valuations, setValuations] = useState<any[]>([]);
 
   // Fetch products from Firestore
   const fetchProducts = async () => {
@@ -123,6 +124,14 @@ const Admin: React.FC = () => {
 
   useEffect(() => {
     fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    const fetchValuations = async () => {
+      const snap = await getDocs(collection(db, 'valuations'));
+      setValuations(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    };
+    fetchValuations();
   }, []);
 
   // Remove useEffect that appends to previews. Only set previews when images/files change.
@@ -311,6 +320,38 @@ const Admin: React.FC = () => {
                           Add
                         </button>
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        {/* Valuation Requests */}
+        <div className="mb-10 bg-black border border-gold-500 rounded-xl p-4 shadow">
+          <h2 className="text-lg font-bold mb-3 text-gold-400">Valuation Requests</h2>
+          {valuations.length === 0 ? (
+            <div className="text-gold-400">No valuation requests yet.</div>
+          ) : (
+            <div className="overflow-x-auto max-h-96">
+              <table className="min-w-full text-xs bg-black border border-gold-900 rounded-xl">
+                <thead>
+                  <tr className="text-gold-400 border-b border-gold-900">
+                    <th className="px-2 py-1">Name</th>
+                    <th className="px-2 py-1">Email</th>
+                    <th className="px-2 py-1">Phone</th>
+                    <th className="px-2 py-1">Message</th>
+                    <th className="px-2 py-1">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {valuations.map(val => (
+                    <tr key={val.id} className="border-b border-gold-900">
+                      <td className="px-2 py-1 text-gold-400">{val.name}</td>
+                      <td className="px-2 py-1 text-gold-400">{val.email}</td>
+                      <td className="px-2 py-1 text-gold-400">{val.phone}</td>
+                      <td className="px-2 py-1 text-gold-400">{val.message}</td>
+                      <td className="px-2 py-1 text-gold-400">{val.createdAt?.toDate?.().toLocaleString?.() || ''}</td>
                     </tr>
                   ))}
                 </tbody>

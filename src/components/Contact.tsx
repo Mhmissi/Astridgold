@@ -16,46 +16,17 @@ const Contact = () => {
     phone: '',
     message: ''
   });
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setUploading(true);
-    let imageUrl = '';
     try {
-      if (imageFile) {
-        // Get authentication parameters from backend
-        const authRes = await fetch(import.meta.env.VITE_IMAGEKIT_AUTH_ENDPOINT);
-        const auth = await authRes.json();
-        // Upload image to ImageKit
-        await new Promise((resolve, reject) => {
-          imagekit.upload(
-            {
-              file: imageFile,
-              fileName: imageFile.name,
-              folder: '/valuations',
-              signature: auth.signature,
-              expire: auth.expire,
-              token: auth.token
-            },
-            function(err: any, result: any) {
-              if (err) reject(err);
-              else if (result && result.url) {
-                imageUrl = result.url;
-                resolve(result.url);
-              } else reject(new Error('No result from ImageKit'));
-            }
-          );
-        });
-      }
       await addDoc(collection(db, 'valuations'), {
         ...formData,
-        imageUrl,
         createdAt: Timestamp.now()
       });
       setFormData({ name: '', email: '', phone: '', message: '' });
-      setImageFile(null);
       alert('Thank you for your inquiry! We will contact you soon.');
     } catch (err) {
       alert('Failed to send your message. Please try again.');
@@ -149,19 +120,6 @@ const Contact = () => {
                   onChange={handleChange}
                   className="w-full px-4 py-3 bg-black border border-gold-500/30 rounded-md text-white placeholder-gray-400 focus:border-gold-400 focus:ring-1 focus:ring-gold-400 transition-colors duration-300 font-body resize-none"
                   placeholder="Describe the items you'd like appraised..."
-                />
-              </div>
-
-              <div>
-                <label htmlFor="image" className="block text-sm font-medium text-gold-400 mb-2 font-serif">
-                  Upload an image (optional)
-                </label>
-                <input
-                  type="file"
-                  id="image"
-                  accept="image/*"
-                  onChange={e => setImageFile(e.target.files ? e.target.files[0] : null)}
-                  className="w-full px-4 py-2 bg-black border border-gold-500/30 rounded-md text-white file:bg-gold-500 file:text-black file:font-bold file:rounded file:px-4 file:py-2"
                 />
               </div>
 
