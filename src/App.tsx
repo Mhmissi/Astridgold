@@ -112,62 +112,60 @@ function App() {
   };
 
   return (
-    <AuthProvider>
-      <Router>
-        <ScrollToSectionOnHome />
-    <div className="min-h-screen bg-black text-white">
-          <Header cartCount={cart.length} onCartClick={() => setIsCartOpen(true)} />
-          <CartDrawer
-            isOpen={isCartOpen}
-            onClose={() => setIsCartOpen(false)}
-            cart={cart}
-            onRemove={handleRemoveFromCart}
-            onCheckout={handleCheckout}
-            // Disable checkout if loading
-            disabled={loading}
+    <Router>
+      <ScrollToSectionOnHome />
+      <div className="min-h-screen bg-black text-white">
+        <Header cartCount={cart.length} onCartClick={() => setIsCartOpen(true)} />
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          cart={cart}
+          onRemove={handleRemoveFromCart}
+          onCheckout={handleCheckout}
+          // Disable checkout if loading
+          disabled={loading}
+        />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <Hero />
+                <Services />
+                <LuxuryWatches />
+                <About />
+                <Valuation />
+                <Testimonials />
+                <Contact />
+                <Footer />
+              </>
+            }
           />
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <>
-      <Hero />
-      <Services />
-      <LuxuryWatches />
-      <About />
-      <Valuation />
-      <Testimonials />
-      <Contact />
-      <Footer />
-                </>
-              }
-            />
-            <Route
-              path="/shop"
-              element={
-                <Shop
-                  cart={cart}
-                  onAddToCart={handleAddToCart}
-                />
-              }
-            />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/reset-password" element={<PasswordReset />} />
-            <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
-            <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
-            <Route
-              path="/admin"
-              element={
-                <AdminRoute>
-                  <Admin />
-                </AdminRoute>
-              }
-            />
-          </Routes>
-    </div>
-      </Router>
-    </AuthProvider>
+          <Route
+            path="/shop"
+            element={
+              <Shop
+                cart={cart}
+                onAddToCart={handleAddToCart}
+              />
+            }
+          />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/reset-password" element={<PasswordReset />} />
+          <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+          <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <Admin />
+              </AdminRoute>
+            }
+          />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 

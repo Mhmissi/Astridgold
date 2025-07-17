@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Menu, X, Globe } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../AuthContext';
+import LogoutButton from './LogoutButton';
 
 interface HeaderProps {
   cartCount: number;
@@ -20,6 +22,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onCartClick }) => {
   const [currentLang, setCurrentLang] = useState('en');
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Helper for nav links: if already on '/', scroll, else navigate with state
   const handleNav = (section: string) => {
@@ -97,6 +100,23 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onCartClick }) => {
                 </React.Fragment>
               ))}
             </div>
+            {/* Auth links */}
+            {user ? (
+              <>
+                <span className="text-gold-400 font-serif text-sm">{user.email}</span>
+                <Link to="/profile" className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gold-900 transition-colors" title="Profile">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-gold-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a8.25 8.25 0 1115 0v.75a.75.75 0 01-.75.75h-13.5a.75.75 0 01-.75-.75v-.75z" />
+                  </svg>
+                </Link>
+                <LogoutButton />
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="text-gold-400 font-serif px-3 py-2 text-sm hover:underline">Login</Link>
+                <Link to="/signup" className="text-gold-400 font-serif px-3 py-2 text-sm hover:underline">Sign Up</Link>
+              </>
+            )}
             {/* Cart Icon */}
             <button
               onClick={onCartClick}
@@ -111,12 +131,6 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onCartClick }) => {
                   {cartCount}
                 </span>
               )}
-            </button>
-            <button
-              onClick={() => handleNav('contact')}
-              className="bg-gradient-to-r from-gold-600 to-gold-500 text-black px-6 py-2 rounded-md text-sm font-medium font-serif hover:from-gold-500 hover:to-gold-400 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              Free Valuation
             </button>
           </div>
 
@@ -174,6 +188,25 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onCartClick }) => {
                 ))}
               </div>
             </div>
+            {/* Auth links mobile */}
+            <div className="px-3 py-2 border-t border-gold-500/20 mt-2 flex flex-col gap-2">
+              {user ? (
+                <>
+                  <span className="text-gold-400 font-serif text-sm">{user.email}</span>
+                  <Link to="/profile" className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gold-900 transition-colors" title="Profile">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-gold-400">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a8.25 8.25 0 1115 0v.75a.75.75 0 01-.75.75h-13.5a.75.75 0 01-.75-.75v-.75z" />
+                    </svg>
+                  </Link>
+                  <LogoutButton />
+                </>
+              ) : (
+                <>
+                  <Link to="/login" className="text-gold-400 font-serif px-3 py-2 text-sm hover:underline">Login</Link>
+                  <Link to="/signup" className="text-gold-400 font-serif px-3 py-2 text-sm hover:underline">Sign Up</Link>
+                </>
+              )}
+            </div>
             {/* Mobile Cart Icon */}
             <div className="flex justify-center py-2">
               <button
@@ -189,14 +222,6 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onCartClick }) => {
                     {cartCount}
                   </span>
                 )}
-              </button>
-            </div>
-            <div className="px-3 py-2">
-              <button
-                onClick={() => handleNav('contact')}
-                className="w-full bg-gradient-to-r from-gold-600 to-gold-500 text-black px-6 py-2 rounded-md text-sm font-medium font-serif hover:from-gold-500 hover:to-gold-400 transition-all duration-300"
-              >
-                Free Valuation
               </button>
             </div>
           </div>

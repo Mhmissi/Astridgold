@@ -1,14 +1,15 @@
 const express = require("express");
 const ImageKit = require("imagekit");
 const cors = require("cors");
+require('dotenv').config();
 
 const app = express();
 app.use(cors());
 
 const imagekit = new ImageKit({
-  publicKey: "public_PF4kBZPZJOt47sW1awGDOmh3Pw8=",
-  privateKey: "private_+zVqFV/+GgLLfIPUXmomBtKfOes=",
-  urlEndpoint: "https://ik.imagekit.io/ilrj0knoeh"
+  publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
 
 app.get("/auth", (req, res) => {

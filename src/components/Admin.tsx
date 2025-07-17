@@ -58,13 +58,13 @@ const comboKey = (c: { shape: string; design: string; metal: string }) =>
   `${c.shape}|${c.design}|${c.metal}`;
 
 const imagekit = new ImageKit({
-  publicKey: "public_PF4kBZPZJOt47sW1awGDOmh3Pw8=",
-  urlEndpoint: "https://ik.imagekit.io/ilrj0knoeh"
+  publicKey: import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY,
+  urlEndpoint: import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT
 });
 
 async function uploadToImageKit(file: File): Promise<string> {
   // 1. Get authentication parameters from your backend
-  const authRes = await fetch("http://localhost:3001/auth");
+  const authRes = await fetch(import.meta.env.VITE_IMAGEKIT_AUTH_ENDPOINT);
   const auth = await authRes.json();
 
   // 2. Use those parameters in the upload call
