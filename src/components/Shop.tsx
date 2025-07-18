@@ -14,6 +14,7 @@ export interface Product {
   carats: string[];
   images?: string[]; // Added images property
   prices?: { [carat: string]: string }; // Added prices property
+  discountPercent?: number; // Added discountPercent property
 }
 
 const diamondShapes = [
@@ -54,6 +55,8 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [metalSelections, setMetalSelections] = useState<{ [id: string]: string }>({});
   const [modalMetal, setModalMetal] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<'low' | 'high'>('low');
+  const [showDiscountedOnly, setShowDiscountedOnly] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -69,6 +72,7 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
     setSelectedMetal(null);
     setSelectedCarat(null);
     setSearch("");
+    setShowDiscountedOnly(false);
   };
 
   const filteredProducts = products.filter((product) => {
@@ -77,7 +81,51 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
     const matchesMetal = !selectedMetal || product.ringMetal === selectedMetal;
     const matchesCarat = !selectedCarat || product.carats.includes(selectedCarat);
     const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase());
+    if (showDiscountedOnly && !(product.discountPercent && product.discountPercent > 0)) return false;
     return matchesShape && matchesDesign && matchesMetal && matchesCarat && matchesSearch;
+  });
+
+  const getComparablePrice = (product: Product, order: 'low' | 'high') => {
+    if (product.prices && typeof product.prices === 'object') {
+      const priceValues = Object.values(product.prices).map(p => Number((p || '').replace(/[^\d.]/g, '')));
+      if (priceValues.length > 0) {
+        return order === 'low' ? Math.min(...priceValues) : Math.max(...priceValues);
+      }
+    }
+    return Number((product.price || '').replace(/[^\d.]/g, ''));
+  };
+
+  const getDiscountedCaratPrice = (product: Product, carat: string) => {
+    const orig = Number((product.prices && product.prices[carat] ? product.prices[carat] : product.price || '').replace(/[^\d.]/g, ''));
+    const discount = product.discountPercent || 0;
+    return discount > 0 ? Math.round(orig * (1 - discount / 100)) : orig;
+  };
+
+  const getDisplayPrice = (product: Product, carat: string) => {
+    // Try to get a valid carat price
+    if (product.prices && carat && product.prices[carat]) {
+      const price = Number((product.prices[carat] || '').replace(/[^\d.]/g, ''));
+      if (price > 0) return price;
+    }
+    // Try to get the first valid carat price
+    if (product.prices && typeof product.prices === 'object') {
+      for (const key of Object.keys(product.prices)) {
+        const price = Number((product.prices[key] || '').replace(/[^\d.]/g, ''));
+        if (price > 0) return price;
+      }
+    }
+    // Try main price
+    const mainPrice = Number((product.price || '').replace(/[^\d.]/g, ''));
+    if (mainPrice > 0) return mainPrice;
+    // Fallback
+    return null;
+  };
+
+  // Remove any grouping or type-based filtering before sorting
+  const sortedProducts = [...products].sort((a, b) => {
+    const priceA = getComparablePrice(a, sortOrder);
+    const priceB = getComparablePrice(b, sortOrder);
+    return sortOrder === 'low' ? priceA - priceB : priceB - priceA;
   });
 
   // Add a mapping for metal colors
@@ -93,7 +141,7 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8 text-center text-gold-400">Shop</h1>
         {/* Top Filter Bar */}
-        <div className="flex flex-wrap gap-4 items-center justify-between bg-black/80 border border-gold-900 rounded-xl px-4 py-3 mb-8 shadow-sm">
+        <div className="flex flex-wrap gap-4 mb-6 items-center justify-between">
           <div className="flex flex-wrap gap-4 items-center flex-1">
             <select
               value={selectedShape || ''}
@@ -151,6 +199,30 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
               className="px-4 py-2 border border-gold-400 rounded-full focus:outline-none focus:ring-2 focus:ring-gold-400 w-full max-w-xs bg-black text-gold-400 placeholder-gold-400"
             />
           </div>
+          <div className="flex items-center gap-2">
+            <label className="text-gold-400 font-serif">Sort by Price:</label>
+            <select
+              value={sortOrder}
+              onChange={e => setSortOrder(e.target.value as 'low' | 'high')}
+              className="bg-black border border-gold-400 text-gold-400 rounded px-2 py-1"
+            >
+              <option value="low">Low to High</option>
+              <option value="high">High to Low</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showDiscountedOnly}
+              onChange={e => setShowDiscountedOnly(e.target.checked)}
+              id="discountedOnly"
+              className="accent-gold-500 w-5 h-5"
+            />
+            <label htmlFor="discountedOnly" className="text-gold-400 font-serif text-lg font-bold flex items-center gap-1">
+              On Sale Only
+              {showDiscountedOnly && <span className="bg-red-500 text-white px-2 py-0.5 rounded text-xs font-bold ml-1">SALE</span>}
+            </label>
+          </div>
         </div>
         {/* Product Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
@@ -167,6 +239,9 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
                 p.carats.join() === product.carats.join() &&
                 p.ringMetal === selectedMetal
               ) || product;
+              const origPrice = getDisplayPrice(product, selectedCarat);
+              const discount = product.discountPercent || 0;
+              const discountedPrice = origPrice && discount > 0 ? Math.round(origPrice * (1 - discount / 100)) : origPrice;
               return (
                 <div
                   key={product.id}
@@ -184,23 +259,29 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
                     )}
                     <div className="p-5 flex-1 flex flex-col justify-between">
                       <div>
-                        <h2 className="text-lg font-bold mb-1 text-gold-400 group-hover:text-gold-600 transition-colors">{matchingProduct.name}</h2>
+                        <h3 className="text-lg font-bold font-serif text-gold-400 mb-2 truncate">{product.name}</h3>
+                        <p className="text-gold-100 font-body mb-2 text-base">{product.description?.slice(0, 60)}{product.description && product.description.length > 60 ? '...' : ''}</p>
                         <div className="flex flex-wrap gap-2 mb-2">
                           <span className="flex items-center gap-1 text-xs text-gold-400">{matchingProduct.diamondShape}</span>
                           <span className="flex items-center gap-1 text-xs text-gold-400">{matchingProduct.ringDesign}</span>
                         </div>
-                        {/* Show price for 1.0 Carat or first carat */}
-                        <p className="text-gold-500 font-bold text-xl mb-2">
-                          {(() => {
-                            let price = '';
-                            if (matchingProduct.prices && matchingProduct.prices['1.0 Carat']) {
-                              price = matchingProduct.prices['1.0 Carat'];
-                            } else if (matchingProduct.prices && matchingProduct.carats.length > 0) {
-                              price = matchingProduct.prices[matchingProduct.carats[0]];
-                            }
-                            return price ? `$${price}` : '';
-                          })()}
-                        </p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <div>
+                            {origPrice ? (
+                              discount > 0 ? (
+                                <>
+                                  <span className="line-through text-red-400 mr-2">${origPrice}</span>
+                                  <span className="text-gold-400 font-bold">${discountedPrice}</span>
+                                  <span className="ml-2 bg-red-500 text-white px-2 py-0.5 rounded text-xs">-{discount}%</span>
+                                </>
+                              ) : (
+                                <span className="text-xl font-bold text-gold-500 font-serif">${origPrice}</span>
+                              )
+                            ) : (
+                              <span className="text-gold-400 font-serif">Contact for Price</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -100,7 +100,8 @@ function isDuplicateCombination(products: Product[], form: Omit<Product, 'id'>, 
 const Admin: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [editing, setEditing] = useState<Product | null>(null);
-  const [form, setForm] = useState<Omit<Product, 'id'> & { id?: string; imageFiles?: File[]; images?: string[] }>({
+  // Add discountPercent to product form state
+  const [form, setForm] = useState<Omit<Product, 'id'> & { id?: string; imageFiles?: File[]; images?: string[]; discountPercent?: number }>({
     name: '',
     prices: {},
     mainImage: '',
@@ -112,10 +113,14 @@ const Admin: React.FC = () => {
     imageFiles: [],
     images: [],
     price: '',
+    discountPercent: 0,
   });
   const [previews, setPreviews] = useState<string[]>([]);
   const [valuations, setValuations] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'valuations' | 'products' | 'orders'>('valuations');
+  const [activeTab, setActiveTab] = useState<'valuations' | 'products' | 'orders' | 'attractImages'>('valuations');
+  const [attractImages, setAttractImages] = useState<string[]>([]);
+  const [uploadingAttract, setUploadingAttract] = useState(false);
+  const [attractImageFile, setAttractImageFile] = useState<File | null>(null);
 
   // Fetch products from Firestore
   const fetchProducts = async () => {
@@ -134,6 +139,16 @@ const Admin: React.FC = () => {
     };
     fetchValuations();
   }, []);
+
+  // Fetch attract images
+  useEffect(() => {
+    if (activeTab !== 'attractImages') return;
+    const fetchAttractImages = async () => {
+      const snap = await getDocs(collection(db, 'attractImages'));
+      setAttractImages(snap.docs.map(doc => doc.data().url));
+    };
+    fetchAttractImages();
+  }, [activeTab]);
 
   // Remove useEffect that appends to previews. Only set previews when images/files change.
 
@@ -174,6 +189,53 @@ const Admin: React.FC = () => {
     }
   };
 
+  // Upload attract image
+  const handleAttractImageUpload = async (file: File) => {
+    setUploadingAttract(true);
+    try {
+      // Get ImageKit auth params
+      const authRes = await fetch(import.meta.env.VITE_IMAGEKIT_AUTH_ENDPOINT);
+      const auth = await authRes.json();
+      const imagekit = new ImageKit({
+        publicKey: import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY,
+        urlEndpoint: import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT
+      });
+      await new Promise((resolve, reject) => {
+        imagekit.upload(
+          {
+            file,
+            fileName: file.name,
+            folder: '/attract',
+            signature: auth.signature,
+            expire: auth.expire,
+            token: auth.token
+          },
+          async function(err: any, result: any) {
+            if (err) reject(err);
+            else if (result && result.url) {
+              await addDoc(collection(db, 'attractImages'), { url: result.url });
+              setAttractImages(prev => [...prev, result.url]);
+              resolve(result.url);
+            } else reject(new Error('No result from ImageKit'));
+          }
+        );
+      });
+    } catch (err) {
+      alert('Failed to upload image.');
+    }
+    setUploadingAttract(false);
+  };
+
+  // Delete attract image
+  const handleDeleteAttractImage = async (url: string) => {
+    const snap = await getDocs(collection(db, 'attractImages'));
+    const docToDelete = snap.docs.find(doc => doc.data().url === url);
+    if (docToDelete) {
+      await deleteDoc(doc(db, 'attractImages', docToDelete.id));
+      setAttractImages(prev => prev.filter(u => u !== url));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -208,14 +270,14 @@ const Admin: React.FC = () => {
     const { imageFiles, ...productData } = form;
 
     if (editing) {
-      await updateDoc(doc(db, 'products', editing.id as string), { ...productData, mainImage, images, prices: form.prices });
+      await updateDoc(doc(db, 'products', editing.id as string), { ...productData, mainImage, images, prices: form.prices, discountPercent: form.discountPercent || 0 });
       setEditing(null);
     } else {
-      await addDoc(collection(db, 'products'), { ...productData, mainImage, images, prices: form.prices });
+      await addDoc(collection(db, 'products'), { ...productData, mainImage, images, prices: form.prices, discountPercent: form.discountPercent || 0 });
     }
 
     setForm({
-      name: '', prices: {}, mainImage: '', description: '', diamondShape: '', ringDesign: '', ringMetal: '', carats: [], imageFiles: [], images: [], price: ''
+      name: '', prices: {}, mainImage: '', description: '', diamondShape: '', ringDesign: '', ringMetal: '', carats: [], imageFiles: [], images: [], price: '', discountPercent: 0
     });
     setPreviews([]);
     fetchProducts();
@@ -236,6 +298,7 @@ const Admin: React.FC = () => {
       imageFiles: [],
       images: Array.isArray(product.images) ? product.images : (product.mainImage ? [product.mainImage] : []),
       price: product.price || '',
+      discountPercent: product.discountPercent || 0,
     });
     setPreviews(Array.isArray(product.images) ? product.images : (product.mainImage ? [product.mainImage] : []));
   };
@@ -244,7 +307,7 @@ const Admin: React.FC = () => {
     await deleteDoc(doc(db, 'products', id));
     if (editing && editing.id === id) {
       setEditing(null);
-      setForm({ name: '', prices: {}, mainImage: '', description: '', diamondShape: '', ringDesign: '', ringMetal: '', carats: [], imageFiles: [], images: [], price: '' });
+      setForm({ name: '', prices: {}, mainImage: '', description: '', diamondShape: '', ringDesign: '', ringMetal: '', carats: [], imageFiles: [], images: [], price: '', discountPercent: 0 });
       setPreviews([]);
     }
     fetchProducts();
@@ -269,6 +332,7 @@ const Admin: React.FC = () => {
       imageFiles: [],
       images: [],
       price: '',
+      discountPercent: 0,
     });
     setPreviews([]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -297,6 +361,12 @@ const Admin: React.FC = () => {
             onClick={() => setActiveTab('orders')}
           >
             Orders
+          </button>
+          <button
+            className={`px-4 py-2 rounded-t font-bold ${activeTab === 'attractImages' ? 'bg-gold-500 text-black' : 'bg-black text-gold-400 border-b-2 border-gold-500'}`}
+            onClick={() => setActiveTab('attractImages')}
+          >
+            Attract Images
           </button>
         </div>
 
@@ -337,219 +407,290 @@ const Admin: React.FC = () => {
 
         {activeTab === 'products' && (
           <>
-            {/* Progress Bar */}
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-gold-400 font-semibold">Upload Progress</span>
-                <span className="text-gold-400">{progress} / {allCombos.length} combinations uploaded</span>
-              </div>
-              <div className="w-full h-3 bg-gold-900 rounded">
-                <div
-                  className="h-3 bg-gold-500 rounded transition-all"
-                  style={{ width: `${(progress / allCombos.length) * 100}%` }}
-                />
-              </div>
-            </div>
-            {/* Missing Combos */}
-            <div className="mb-10 bg-black border border-gold-500 rounded-xl p-4 shadow">
-              <h2 className="text-lg font-bold mb-3 text-gold-400">Missing Product Combinations</h2>
-              {missingCombos.length === 0 ? (
-                <div className="text-gold-400">All combinations uploaded!</div>
-              ) : (
-                <div className="overflow-x-auto max-h-96">
-                  <table className="min-w-full text-xs bg-black border border-gold-900 rounded-xl">
-                    <thead>
-                      <tr className="text-gold-400 border-b border-gold-900">
-                        <th className="px-2 py-1">Shape</th>
-                        <th className="px-2 py-1">Design</th>
-                        <th className="px-2 py-1">Metal</th>
-                        <th className="px-2 py-1">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {missingCombos.map((c) => (
-                        <tr key={comboKey(c)} className="border-b border-gold-900">
-                          <td className="px-2 py-1 text-gold-400">{c.shape}</td>
-                          <td className="px-2 py-1 text-gold-400">{c.design}</td>
-                          <td className="px-2 py-1 text-gold-400">{c.metal}</td>
-                          <td className="px-2 py-1">
-                            <button
-                              className="bg-gold-500 text-black px-3 py-1 rounded font-bold hover:bg-gold-600 transition-colors"
-                              onClick={() => quickAdd(c)}
-                            >
-                              Add
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            {/* Product Form */}
-            <form onSubmit={handleSubmit} className="bg-black border border-gold-500 rounded-xl p-6 mb-10 shadow-lg">
-              <h2 className="text-xl font-bold mb-4 text-gold-400">{editing ? 'Edit Product' : 'Add Product'}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block mb-1 text-gold-400">Name</label>
-                  <input name="name" value={form.name} onChange={handleInput} required className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400" />
-                </div>
-                <div>
-                  <label className="block mb-1 text-gold-400">Diamond Shape</label>
-                  <select name="diamondShape" value={form.diamondShape} onChange={handleInput} required className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400">
-                    <option value="">Select</option>
-                    {diamondShapes.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block mb-1 text-gold-400">Ring Design</label>
-                  <select name="ringDesign" value={form.ringDesign} onChange={handleInput} required className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400">
-                    <option value="">Select</option>
-                    {ringDesigns.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block mb-1 text-gold-400">Ring Metal</label>
-                  <select name="ringMetal" value={form.ringMetal} onChange={handleInput} required className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400">
-                    <option value="">Select</option>
-                    {ringMetals.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block mb-1 text-gold-400">Carats</label>
-                  <div className="flex flex-wrap gap-2">
-                    {carats.map(carat => (
-                      <label key={carat} className="flex items-center gap-1 text-gold-400">
-                        <input
-                          type="checkbox"
-                          checked={form.carats.includes(carat)}
-                          onChange={() => handleCaratChange(carat)}
-                          className="accent-gold-500"
-                        />
-                        {carat}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                  {form.carats.map((carat) => (
-                    <div key={carat}>
-                      <label className="block mb-1 text-gold-400">Price for {carat}</label>
-                      <input
-                        type="text"
-                        value={form.prices[carat] || ''}
-                        onChange={e => handleCaratPriceChange(carat, e.target.value)}
-                        required
-                        className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block mb-1 text-gold-400">Description</label>
-                  <textarea name="description" value={form.description} onChange={handleInput} rows={2} className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400" />
-                </div>
-                <div className="md:col-span-2 flex flex-col md:flex-row gap-4 items-center">
-                  <div>
-                    <label className="block mb-1 text-gold-400">Images</label>
-                    <input type="file" accept="image/*" multiple onChange={handleImages} className="text-gold-400" />
-                  </div>
-                  {previews.length > 0 && (
-                    <div className="flex gap-2 flex-wrap">
-                      {previews.map((src, idx) => (
-                        <div key={idx} className="relative">
-                          <img src={src} alt="Preview" className="w-24 h-24 object-cover rounded border border-gold-500" />
-                          <button
-                            type="button"
-                            className="absolute top-0 right-0 bg-black bg-opacity-70 text-gold-400 rounded-full w-6 h-6 flex items-center justify-center"
-                            onClick={() => {
-                              setPreviews(previews.filter((_, i) => i !== idx));
-                              setForm((prev) => ({
-                                ...prev,
-                                imageFiles: prev.imageFiles?.filter((_, i) => i !== idx) || [],
-                              }));
-                            }}
-                            title="Remove"
-                          >×</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="mt-6 flex gap-4">
-                <button type="submit" className="bg-gold-500 text-black px-6 py-2 rounded font-bold hover:bg-gold-600 transition-colors">{editing ? 'Update' : 'Add'} Product</button>
-                {editing && (
-                  <button type="button" onClick={() => { setEditing(null); setForm({ name: '', prices: {}, mainImage: '', description: '', diamondShape: '', ringDesign: '', ringMetal: '', carats: [], imageFiles: [], images: [], price: '' }); setPreviews([]); }} className="bg-black border border-gold-400 text-gold-400 px-6 py-2 rounded font-bold hover:bg-gold-600 hover:text-black transition-colors">Cancel</button>
-                )}
-              </div>
-            </form>
-            <h2 className="text-xl font-bold mb-4 text-gold-400">Products</h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-black border border-gold-900 rounded-xl">
+        {/* Progress Bar */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-gold-400 font-semibold">Upload Progress</span>
+            <span className="text-gold-400">{progress} / {allCombos.length} combinations uploaded</span>
+          </div>
+          <div className="w-full h-3 bg-gold-900 rounded">
+            <div
+              className="h-3 bg-gold-500 rounded transition-all"
+              style={{ width: `${(progress / allCombos.length) * 100}%` }}
+            />
+          </div>
+        </div>
+        {/* Missing Combos */}
+        <div className="mb-10 bg-black border border-gold-500 rounded-xl p-4 shadow">
+          <h2 className="text-lg font-bold mb-3 text-gold-400">Missing Product Combinations</h2>
+          {missingCombos.length === 0 ? (
+            <div className="text-gold-400">All combinations uploaded!</div>
+          ) : (
+            <div className="overflow-x-auto max-h-96">
+              <table className="min-w-full text-xs bg-black border border-gold-900 rounded-xl">
                 <thead>
                   <tr className="text-gold-400 border-b border-gold-900">
-                    <th className="px-4 py-2">Image</th>
-                    <th className="px-4 py-2">Name</th>
-                    <th className="px-4 py-2">Price</th>
-                    <th className="px-4 py-2">Shape</th>
-                    <th className="px-4 py-2">Design</th>
-                    <th className="px-4 py-2">Metal</th>
-                    <th className="px-4 py-2">Carats</th>
-                    <th className="px-4 py-2">Actions</th>
+                    <th className="px-2 py-1">Shape</th>
+                    <th className="px-2 py-1">Design</th>
+                    <th className="px-2 py-1">Metal</th>
+                    <th className="px-2 py-1">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {products.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center text-gold-400 py-6">No products yet.</td></tr>
-                  ) : (
-                    products.map(product => (
-                      <tr key={product.id} className="border-b border-gold-900">
-                        <td className="px-4 py-2">
-                          <div className="flex gap-1 flex-wrap">
-                            {product.images && product.images.length > 0 ? product.images.map((img, idx) => (
-                              <img key={idx} src={img} alt={product.name} className="w-10 h-10 object-cover rounded border border-gold-900" />
-                            )) : (
-                              <img src={product.mainImage} alt={product.name} className="w-10 h-10 object-cover rounded border border-gold-900" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-gold-400 font-semibold">{product.name}</td>
-                        <td className="px-4 py-2 text-gold-500 font-bold">
-                          {(product.carats && Array.isArray(product.carats) && product.carats.length > 0) ? (
-                            product.carats.map((carat) => (
-                              <div key={carat}>
-                                {carat}: <span className="text-gold-500 font-bold">{product.prices && product.prices[carat] ? product.prices[carat] : '-'}</span>
-                              </div>
-                            ))
-                          ) : (
-                            <span>-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-gold-400">{product.diamondShape}</td>
-                        <td className="px-4 py-2 text-gold-400">{product.ringDesign}</td>
-                        <td className="px-4 py-2 text-gold-400">{product.ringMetal}</td>
-                        <td className="px-4 py-2 text-gold-400">
-                          {(product.carats && Array.isArray(product.carats) && product.carats.length > 0) ? (
-                            product.carats.map((carat) => (
-                              <div key={carat}>{carat}: <span className="text-gold-500 font-bold">{product.prices && product.prices[carat] ? product.prices[carat] : '-'}</span></div>
-                            ))
-                          ) : (
-                            <span>-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 flex gap-2">
-                          <button onClick={() => handleEdit(product)} className="bg-gold-500 text-black px-3 py-1 rounded font-bold hover:bg-gold-600 transition-colors">Edit</button>
-                          <button onClick={() => handleDelete(product.id as string)} className="bg-black border border-gold-400 text-gold-400 px-3 py-1 rounded font-bold hover:bg-gold-600 hover:text-black transition-colors">Delete</button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  {missingCombos.map((c) => (
+                    <tr key={comboKey(c)} className="border-b border-gold-900">
+                      <td className="px-2 py-1 text-gold-400">{c.shape}</td>
+                      <td className="px-2 py-1 text-gold-400">{c.design}</td>
+                      <td className="px-2 py-1 text-gold-400">{c.metal}</td>
+                      <td className="px-2 py-1">
+                        <button
+                          className="bg-gold-500 text-black px-3 py-1 rounded font-bold hover:bg-gold-600 transition-colors"
+                          onClick={() => quickAdd(c)}
+                        >
+                          Add
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+        {/* Product Form */}
+        <form onSubmit={handleSubmit} className="bg-black border border-gold-500 rounded-xl p-6 mb-10 shadow-lg">
+          <h2 className="text-xl font-bold mb-4 text-gold-400">{editing ? 'Edit Product' : 'Add Product'}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1 text-gold-400">Name</label>
+              <input name="name" value={form.name} onChange={handleInput} required className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400" />
+            </div>
+            <div>
+              <label className="block mb-1 text-gold-400">Diamond Shape</label>
+              <select name="diamondShape" value={form.diamondShape} onChange={handleInput} required className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400">
+                <option value="">Select</option>
+                {diamondShapes.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block mb-1 text-gold-400">Ring Design</label>
+              <select name="ringDesign" value={form.ringDesign} onChange={handleInput} required className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400">
+                <option value="">Select</option>
+                {ringDesigns.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block mb-1 text-gold-400">Ring Metal</label>
+              <select name="ringMetal" value={form.ringMetal} onChange={handleInput} required className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400">
+                <option value="">Select</option>
+                {ringMetals.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block mb-1 text-gold-400">Carats</label>
+              <div className="flex flex-wrap gap-2">
+                {carats.map(carat => (
+                  <label key={carat} className="flex items-center gap-1 text-gold-400">
+                    <input
+                      type="checkbox"
+                      checked={form.carats.includes(carat)}
+                      onChange={() => handleCaratChange(carat)}
+                      className="accent-gold-500"
+                    />
+                    {carat}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="md:col-span-2 grid grid-cols-2 gap-4">
+              {form.carats.map((carat) => {
+                const original = form.prices[carat] || '';
+                const origNum = Number((original || '').replace(/[^\d.]/g, ''));
+                const discount = form.discountPercent || 0;
+                const discounted = discount > 0 ? Math.round(origNum * (1 - discount / 100)) : origNum;
+                return (
+                  <div key={carat}>
+                    <label className="block mb-1 text-gold-400">Price for {carat}</label>
+                    <input
+                      type="text"
+                      value={form.prices[carat] || ''}
+                      onChange={e => handleCaratPriceChange(carat, e.target.value)}
+                      required
+                      className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400"
+                    />
+                    {discount > 0 && origNum > 0 && (
+                      <div className="mt-1 text-sm">
+                        <span className="line-through text-red-400 mr-2">${origNum}</span>
+                        <span className="text-gold-400 font-bold">${discounted}</span>
+                        <span className="ml-2 bg-red-500 text-white px-2 py-0.5 rounded text-xs">-{discount}%</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="md:col-span-2">
+              <label className="block mb-1 text-gold-400">Discount (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="90"
+                value={form.discountPercent || ''}
+                onChange={e => setForm(prev => ({ ...prev, discountPercent: Number(e.target.value) }))}
+                className="w-32 px-3 py-2 rounded bg-black border border-gold-400 text-gold-400"
+                placeholder="e.g. 20"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block mb-1 text-gold-400">Description</label>
+              <textarea name="description" value={form.description} onChange={handleInput} rows={2} className="w-full px-3 py-2 rounded bg-black border border-gold-400 text-gold-400" />
+            </div>
+            <div className="md:col-span-2 flex flex-col md:flex-row gap-4 items-center">
+              <div>
+                <label className="block mb-1 text-gold-400">Images</label>
+                <input type="file" accept="image/*" multiple onChange={handleImages} className="text-gold-400" />
+              </div>
+              {previews.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {previews.map((src, idx) => (
+                    <div key={idx} className="relative">
+                      <img src={src} alt="Preview" className="w-24 h-24 object-cover rounded border border-gold-500" />
+                      <button
+                        type="button"
+                        className="absolute top-0 right-0 bg-black bg-opacity-70 text-gold-400 rounded-full w-6 h-6 flex items-center justify-center"
+                        onClick={() => {
+                          setPreviews(previews.filter((_, i) => i !== idx));
+                          setForm((prev) => ({
+                            ...prev,
+                            imageFiles: prev.imageFiles?.filter((_, i) => i !== idx) || [],
+                          }));
+                        }}
+                        title="Remove"
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="mt-6 flex gap-4">
+            <button type="submit" className="bg-gold-500 text-black px-6 py-2 rounded font-bold hover:bg-gold-600 transition-colors">{editing ? 'Update' : 'Add'} Product</button>
+            {editing && (
+              <button type="button" onClick={() => { setEditing(null); setForm({ name: '', prices: {}, mainImage: '', description: '', diamondShape: '', ringDesign: '', ringMetal: '', carats: [], imageFiles: [], images: [], price: '', discountPercent: 0 }); setPreviews([]); }} className="bg-black border border-gold-400 text-gold-400 px-6 py-2 rounded font-bold hover:bg-gold-600 hover:text-black transition-colors">Cancel</button>
+            )}
+          </div>
+        </form>
+        <h2 className="text-xl font-bold mb-4 text-gold-400">Products</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-black border border-gold-900 rounded-xl">
+            <thead>
+              <tr className="text-gold-400 border-b border-gold-900">
+                <th className="px-4 py-2">Image</th>
+                <th className="px-4 py-2">Name</th>
+                <th className="px-4 py-2">Price</th>
+                <th className="px-4 py-2">Shape</th>
+                <th className="px-4 py-2">Design</th>
+                <th className="px-4 py-2">Metal</th>
+                <th className="px-4 py-2">Carats</th>
+                <th className="px-4 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.length === 0 ? (
+                <tr><td colSpan={8} className="text-center text-gold-400 py-6">No products yet.</td></tr>
+              ) : (
+                products.map(product => (
+                  <tr key={product.id} className="border-b border-gold-900">
+                    <td className="px-4 py-2">
+                      <div className="flex gap-1 flex-wrap">
+                        {product.images && product.images.length > 0 ? product.images.map((img, idx) => (
+                          <img key={idx} src={img} alt={product.name} className="w-10 h-10 object-cover rounded border border-gold-900" />
+                        )) : (
+                          <img src={product.mainImage} alt={product.name} className="w-10 h-10 object-cover rounded border border-gold-900" />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-gold-400 font-semibold">{product.name}</td>
+                    <td className="px-4 py-2 text-gold-500 font-bold">
+                      {(product.carats && Array.isArray(product.carats) && product.carats.length > 0) ? (
+                        product.carats.map((carat) => (
+                          <div key={carat}>
+                            {product.discountPercent > 0 ? (
+                              <>
+                                <span className="line-through text-red-400 mr-1">${getOriginalPrice(product)}</span>
+                                <span className="text-gold-400 font-bold">${getDiscountedPrice(product)}</span>
+                                <span className="ml-1 bg-red-500 text-white px-2 py-0.5 rounded text-xs">-{product.discountPercent}%</span>
+                              </>
+                            ) : (
+                              <span>${getOriginalPrice(product)}</span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <span>-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-gold-400">{product.diamondShape}</td>
+                    <td className="px-4 py-2 text-gold-400">{product.ringDesign}</td>
+                    <td className="px-4 py-2 text-gold-400">{product.ringMetal}</td>
+                    <td className="px-4 py-2 text-gold-400">
+                      {(product.carats && Array.isArray(product.carats) && product.carats.length > 0) ? (
+                        product.carats.map((carat) => (
+                          <div key={carat}>{carat}: <span className="text-gold-500 font-bold">{product.prices && product.prices[carat] ? product.prices[carat] : '-'}</span></div>
+                        ))
+                      ) : (
+                        <span>-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 flex gap-2">
+                      <button onClick={() => handleEdit(product)} className="bg-gold-500 text-black px-3 py-1 rounded font-bold hover:bg-gold-600 transition-colors">Edit</button>
+                      <button onClick={() => handleDelete(product.id as string)} className="bg-black border border-gold-400 text-gold-400 px-3 py-1 rounded font-bold hover:bg-gold-600 hover:text-black transition-colors">Delete</button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
           </>
+        )}
+
+        {activeTab === 'attractImages' && (
+          <div className="mb-10 bg-black border border-gold-500 rounded-xl p-4 shadow">
+            <h2 className="text-lg font-bold mb-3 text-gold-400">Attract Clients Images</h2>
+            <div className="flex items-center gap-4 mb-4">
+              <input
+                type="file"
+                accept="image/*"
+                disabled={uploadingAttract}
+                onChange={e => {
+                  if (e.target.files && e.target.files[0]) setAttractImageFile(e.target.files[0]);
+                }}
+                className="text-gold-400"
+              />
+              <button
+                type="button"
+                disabled={!attractImageFile || uploadingAttract}
+                onClick={() => attractImageFile && handleAttractImageUpload(attractImageFile)}
+                className="bg-gradient-to-r from-gold-600 to-gold-500 text-black px-4 py-2 rounded font-bold font-serif hover:from-gold-500 hover:to-gold-400 transition-all duration-300 shadow hover:shadow-lg disabled:opacity-60"
+              >
+                {uploadingAttract ? 'Uploading...' : 'Upload'}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              {attractImages.map((url, idx) => (
+                <div key={idx} className="relative group">
+                  <img src={url} alt="Attract" className="w-40 h-40 object-cover rounded border border-gold-500" />
+                  <button
+                    type="button"
+                    className="absolute top-1 right-1 bg-black bg-opacity-70 text-gold-400 rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                    onClick={() => handleDeleteAttractImage(url)}
+                    title="Delete"
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {activeTab === 'orders' && (
@@ -816,5 +957,21 @@ const OrderManagement: React.FC = () => {
     </div>
   );
 };
+
+// Helper functions for price display
+function getOriginalPrice(prod: Product) {
+  if (prod.prices && typeof prod.prices === 'object') {
+    const caratKeys = Object.keys(prod.prices);
+    if (caratKeys.length > 0) {
+      return Number((prod.prices[caratKeys[0]] || '').replace(/[^\d.]/g, ''));
+    }
+  }
+  return Number((prod.price || '').replace(/[^\d.]/g, ''));
+}
+function getDiscountedPrice(prod: Product) {
+  const orig = getOriginalPrice(prod);
+  const discount = prod.discountPercent || 0;
+  return discount > 0 ? Math.round(orig * (1 - discount / 100)) : orig;
+}
 
 export default Admin; 

@@ -26,8 +26,8 @@ const Contact = () => {
         ...formData,
         createdAt: Timestamp.now()
       });
-      setFormData({ name: '', email: '', phone: '', message: '' });
-      alert('Thank you for your inquiry! We will contact you soon.');
+    setFormData({ name: '', email: '', phone: '', message: '' });
+    alert('Thank you for your inquiry! We will contact you soon.');
     } catch (err) {
       alert('Failed to send your message. Please try again.');
     }
