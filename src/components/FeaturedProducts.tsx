@@ -7,11 +7,15 @@ import { Link } from 'react-router-dom';
 const FeaturedProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [specialEditions, setSpecialEditions] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchProducts = async () => {
       const snap = await getDocs(collection(db, 'products'));
       setProducts(snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Product)));
+      // Fetch special editions
+      const specialSnap = await getDocs(collection(db, 'specialEditions'));
+      setSpecialEditions(specialSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     };
     fetchProducts();
@@ -20,9 +24,15 @@ const FeaturedProducts: React.FC = () => {
   if (loading) return null;
   if (products.length === 0) return null;
 
+  // Merge specialEditions into the main product list for display
+  const allProducts = [
+    ...products,
+    ...specialEditions.map(s => ({ ...s, isSpecialEdition: true }))
+  ];
+
   // Hot Deals: up to 4 discounted products
-  const hotDeals = products.filter(p => p.discountPercent && p.discountPercent > 0).slice(0, 4);
-  const featured = products.filter(p => !p.discountPercent || p.discountPercent === 0).slice(0, 4);
+  const hotDeals = allProducts.filter(p => p.discountPercent && p.discountPercent > 0).slice(0, 4);
+  const featured = allProducts.filter(p => (!p.discountPercent || p.discountPercent === 0) && !p.isSpecialEdition).slice(0, 4);
 
   const getDisplayPrice = (product: Product) => {
     // Try to get the first valid carat price
@@ -42,6 +52,7 @@ const FeaturedProducts: React.FC = () => {
   return (
     <section className="py-20 bg-black">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Hot Deals section */}
         {hotDeals.length > 0 && (
           <div className="mb-16">
             <div className="text-center mb-12">
@@ -67,6 +78,9 @@ const FeaturedProducts: React.FC = () => {
                       />
                       {discount > 0 && (
                         <span className="absolute top-2 left-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">-{discount}%</span>
+                      )}
+                      {product.isSpecialEdition && (
+                        <span className="absolute top-2 right-2 bg-gold-500 text-black px-3 py-1 rounded-full text-xs font-bold shadow-lg z-20">Special Edition</span>
                       )}
                     </div>
                     <div className="p-5 flex-1 flex flex-col justify-between">
@@ -99,6 +113,7 @@ const FeaturedProducts: React.FC = () => {
             </div>
           </div>
         )}
+        {/* Featured Products section */}
         <div>
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold font-serif text-white mb-4">
@@ -119,6 +134,9 @@ const FeaturedProducts: React.FC = () => {
                       alt={product.name}
                       className="h-56 w-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
+                    {product.isSpecialEdition && (
+                      <span className="absolute top-2 right-2 bg-gold-500 text-black px-3 py-1 rounded-full text-xs font-bold shadow-lg z-20">Special Edition</span>
+                    )}
                   </div>
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>

@@ -117,10 +117,22 @@ const Admin: React.FC = () => {
   });
   const [previews, setPreviews] = useState<string[]>([]);
   const [valuations, setValuations] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'valuations' | 'products' | 'orders' | 'attractImages'>('valuations');
+  const [activeTab, setActiveTab] = useState<'valuations' | 'products' | 'orders' | 'attractImages' | 'specialEditions'>('valuations');
   const [attractImages, setAttractImages] = useState<string[]>([]);
   const [uploadingAttract, setUploadingAttract] = useState(false);
   const [attractImageFile, setAttractImageFile] = useState<File | null>(null);
+  const [specialEditions, setSpecialEditions] = useState<any[]>([]);
+  const [specialForm, setSpecialForm] = useState({
+    id: '',
+    name: '',
+    price: '',
+    description: '',
+    images: [] as string[],
+    imageFiles: [] as File[],
+    discountPercent: 0,
+  });
+  const [specialImagePreviews, setSpecialImagePreviews] = useState<string[]>([]);
+  const [uploadingSpecial, setUploadingSpecial] = useState(false);
 
   // Fetch products from Firestore
   const fetchProducts = async () => {
@@ -148,6 +160,16 @@ const Admin: React.FC = () => {
       setAttractImages(snap.docs.map(doc => doc.data().url));
     };
     fetchAttractImages();
+  }, [activeTab]);
+
+  // Fetch special editions
+  useEffect(() => {
+    if (activeTab !== 'specialEditions') return;
+    const fetchSpecials = async () => {
+      const snap = await getDocs(collection(db, 'specialEditions'));
+      setSpecialEditions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    };
+    fetchSpecials();
   }, [activeTab]);
 
   // Remove useEffect that appends to previews. Only set previews when images/files change.
@@ -234,6 +256,86 @@ const Admin: React.FC = () => {
       await deleteDoc(doc(db, 'attractImages', docToDelete.id));
       setAttractImages(prev => prev.filter(u => u !== url));
     }
+  };
+
+  const handleSpecialImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setSpecialForm(f => ({ ...f, imageFiles: files }));
+      // Generate previews
+      Promise.all(files.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+      })).then(setSpecialImagePreviews);
+    }
+  };
+
+  // Upload or update special edition
+  const handleSpecialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploadingSpecial(true);
+    let imageUrls = specialForm.images || [];
+    try {
+      if (specialForm.imageFiles && specialForm.imageFiles.length > 0) {
+        imageUrls = [];
+        for (const file of specialForm.imageFiles) {
+          const authRes = await fetch(import.meta.env.VITE_IMAGEKIT_AUTH_ENDPOINT);
+          const auth = await authRes.json();
+          const imagekit = new ImageKit({
+            publicKey: import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY,
+            urlEndpoint: import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT
+          });
+          await new Promise((resolve, reject) => {
+            imagekit.upload(
+              {
+                file,
+                fileName: file.name,
+                folder: '/specialEditions',
+                signature: auth.signature,
+                expire: auth.expire,
+                token: auth.token
+              },
+              function(err: any, result: any) {
+                if (err) reject(err);
+                else if (result && result.url) {
+                  imageUrls.push(result.url);
+                  resolve(result.url);
+                } else reject(new Error('No result from ImageKit'));
+              }
+            );
+          });
+        }
+      }
+      const data = {
+        name: specialForm.name,
+        price: specialForm.price,
+        description: specialForm.description,
+        images: imageUrls,
+        discountPercent: specialForm.discountPercent || 0,
+      };
+      if (specialForm.id) {
+        await updateDoc(doc(db, 'specialEditions', specialForm.id), data);
+      } else {
+        await addDoc(collection(db, 'specialEditions'), data);
+      }
+      setSpecialForm({ id: '', name: '', price: '', description: '', images: [], imageFiles: [], discountPercent: 0 });
+      setSpecialImagePreviews([]);
+      // Refresh list
+      const snap = await getDocs(collection(db, 'specialEditions'));
+      setSpecialEditions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (err) {
+      alert('Failed to upload special edition.');
+    }
+    setUploadingSpecial(false);
+  };
+
+  // Delete special edition
+  const handleDeleteSpecial = async (id: string) => {
+    await deleteDoc(doc(db, 'specialEditions', id));
+    setSpecialEditions(prev => prev.filter(s => s.id !== id));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -367,6 +469,12 @@ const Admin: React.FC = () => {
             onClick={() => setActiveTab('attractImages')}
           >
             Attract Images
+          </button>
+          <button
+            className={`px-4 py-2 rounded-t font-bold ${activeTab === 'specialEditions' ? 'bg-gold-500 text-black' : 'bg-black text-gold-400 border-b-2 border-gold-500'}`}
+            onClick={() => setActiveTab('specialEditions')}
+          >
+            Special Editions
           </button>
         </div>
 
@@ -687,6 +795,117 @@ const Admin: React.FC = () => {
                     onClick={() => handleDeleteAttractImage(url)}
                     title="Delete"
                   >×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'specialEditions' && (
+          <div className="mb-10 bg-black border border-gold-500 rounded-xl p-4 shadow">
+            <h2 className="text-lg font-bold mb-3 text-gold-400">Special Edition Rings</h2>
+            <form onSubmit={handleSpecialSubmit} className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
+              <input
+                type="text"
+                placeholder="Name"
+                value={specialForm.name}
+                onChange={e => setSpecialForm(f => ({ ...f, name: e.target.value }))}
+                className="px-3 py-2 rounded bg-black border border-gold-400 text-gold-400 w-48"
+                required
+              />
+              <input
+                type="text"
+                placeholder="Price"
+                value={specialForm.price}
+                onChange={e => setSpecialForm(f => ({ ...f, price: e.target.value }))}
+                className="px-3 py-2 rounded bg-black border border-gold-400 text-gold-400 w-32"
+                required
+              />
+              <input
+                type="number"
+                min="0"
+                max="90"
+                placeholder="Discount (%)"
+                value={specialForm.discountPercent || ''}
+                onChange={e => setSpecialForm(f => ({ ...f, discountPercent: Number(e.target.value) }))}
+                className="px-3 py-2 rounded bg-black border border-gold-400 text-gold-400 w-32"
+              />
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleSpecialImageChange}
+                className="text-gold-400"
+              />
+              <button
+                type="submit"
+                disabled={uploadingSpecial}
+                className="bg-gradient-to-r from-gold-600 to-gold-500 text-black px-4 py-2 rounded font-bold font-serif hover:from-gold-500 hover:to-gold-400 transition-all duration-300 shadow hover:shadow-lg disabled:opacity-60"
+              >
+                {uploadingSpecial ? 'Uploading...' : specialForm.id ? 'Update' : 'Add'}
+              </button>
+            </form>
+            {/* Image previews */}
+            {specialImagePreviews.length > 0 && (
+              <div className="flex gap-2 mb-4">
+                {specialImagePreviews.map((src, idx) => (
+                  <div key={idx} className="relative">
+                    <img src={src} alt="Preview" className="w-24 h-24 object-cover rounded border border-gold-500" />
+                    <button
+                      type="button"
+                      className="absolute top-0 right-0 bg-black bg-opacity-70 text-gold-400 rounded-full w-6 h-6 flex items-center justify-center"
+                      onClick={() => {
+                        setSpecialImagePreviews(pre => pre.filter((_, i) => i !== idx));
+                        setSpecialForm(f => ({ ...f, imageFiles: f.imageFiles.filter((_, i) => i !== idx) }));
+                      }}
+                      title="Remove"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Discount preview */}
+            {specialForm.price && Number(specialForm.price.replace(/[^\d.]/g, '')) > 0 && specialForm.discountPercent > 0 && (
+              <div className="mb-4 text-gold-400 text-lg font-serif">
+                <span className="line-through text-red-400 mr-2">${Number(specialForm.price.replace(/[^\d.]/g, ''))}</span>
+                <span className="text-gold-400 font-bold">${Math.round(Number(specialForm.price.replace(/[^\d.]/g, '')) * (1 - specialForm.discountPercent / 100))}</span>
+                <span className="ml-2 bg-red-500 text-white px-2 py-0.5 rounded text-xs">-{specialForm.discountPercent}%</span>
+              </div>
+            )}
+            <textarea
+              placeholder="Description"
+              value={specialForm.description}
+              onChange={e => setSpecialForm(f => ({ ...f, description: e.target.value }))}
+              className="px-3 py-2 rounded bg-black border border-gold-400 text-gold-400 w-full mb-4"
+              rows={2}
+              required
+            />
+            <div className="flex flex-wrap gap-6">
+              {specialEditions.map(s => (
+                <div key={s.id} className="relative bg-black border border-gold-500 rounded-xl p-4 w-64 flex flex-col items-center">
+                  <img src={s.image} alt={s.name} className="w-40 h-40 object-cover rounded mb-2 border border-gold-400" />
+                  <div className="text-gold-400 font-bold text-lg mb-1">{s.name}</div>
+                  <div className="text-gold-500 font-bold text-xl mb-1">${s.price}</div>
+                  {s.discountPercent > 0 && (
+                    <div className="mb-1">
+                      <span className="line-through text-red-400 mr-2">${Number(s.price.replace(/[^\d.]/g, ''))}</span>
+                      <span className="text-gold-400 font-bold">${Math.round(Number(s.price.replace(/[^\d.]/g, '')) * (1 - s.discountPercent / 100))}</span>
+                      <span className="ml-2 bg-red-500 text-white px-2 py-0.5 rounded text-xs">-{s.discountPercent}%</span>
+                    </div>
+                  )}
+                  <div className="text-gold-100 text-sm mb-2 text-center">{s.description}</div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSpecialForm({ ...s, imageFiles: [] })}
+                      className="bg-gold-500 text-black px-3 py-1 rounded font-bold text-xs hover:bg-gold-600"
+                    >Edit</button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSpecial(s.id)}
+                      className="bg-red-500 text-white px-3 py-1 rounded font-bold text-xs hover:bg-red-600"
+                    >Delete</button>
+                  </div>
                 </div>
               ))}
             </div>

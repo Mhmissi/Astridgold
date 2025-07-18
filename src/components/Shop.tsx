@@ -57,11 +57,16 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
   const [modalMetal, setModalMetal] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<'low' | 'high'>('low');
   const [showDiscountedOnly, setShowDiscountedOnly] = useState(false);
+  const [showSpecialEditionsOnly, setShowSpecialEditionsOnly] = useState(false);
+  const [specialEditions, setSpecialEditions] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchProducts = async () => {
       const querySnapshot = await getDocs(collection(db, "products"));
       setProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+      // Fetch special editions
+      const specialSnap = await getDocs(collection(db, 'specialEditions'));
+      setSpecialEditions(specialSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     };
     fetchProducts();
   }, []);
@@ -73,15 +78,21 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
     setSelectedCarat(null);
     setSearch("");
     setShowDiscountedOnly(false);
+    setShowSpecialEditionsOnly(false);
   };
 
-  const filteredProducts = products.filter((product) => {
+  // Remove the separate Special Editions section
+  // Merge specialEditions into the main product list for display
+  const allProducts = [...products, ...specialEditions.map(s => ({ ...s, isSpecialEdition: true }))];
+
+  const filteredProducts = allProducts.filter((product) => {
     const matchesShape = !selectedShape || product.diamondShape === selectedShape;
     const matchesDesign = !selectedDesign || product.ringDesign === selectedDesign;
     const matchesMetal = !selectedMetal || product.ringMetal === selectedMetal;
     const matchesCarat = !selectedCarat || product.carats.includes(selectedCarat);
     const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase());
     if (showDiscountedOnly && !(product.discountPercent && product.discountPercent > 0)) return false;
+    if (showSpecialEditionsOnly && !product.isSpecialEdition) return false;
     return matchesShape && matchesDesign && matchesMetal && matchesCarat && matchesSearch;
   });
 
@@ -223,6 +234,19 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
               {showDiscountedOnly && <span className="bg-red-500 text-white px-2 py-0.5 rounded text-xs font-bold ml-1">SALE</span>}
             </label>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showSpecialEditionsOnly}
+              onChange={e => setShowSpecialEditionsOnly(e.target.checked)}
+              id="specialEditionsOnly"
+              className="accent-gold-500 w-5 h-5"
+            />
+            <label htmlFor="specialEditionsOnly" className="text-gold-400 font-serif text-lg font-bold flex items-center gap-1">
+              Special Editions Only
+              {showSpecialEditionsOnly && <span className="bg-gold-500 text-black px-2 py-0.5 rounded text-xs font-bold ml-1">SPECIAL</span>}
+            </label>
+          </div>
         </div>
         {/* Product Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
@@ -245,8 +269,11 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
               return (
                 <div
                   key={product.id}
-                  className="bg-black rounded-2xl shadow-lg overflow-hidden flex flex-col border-2 border-gold-900 hover:border-gold-500 hover:shadow-2xl transition-all duration-200 cursor-pointer group"
+                  className="bg-black rounded-2xl shadow-lg overflow-hidden flex flex-col border-2 border-gold-900 hover:border-gold-500 hover:shadow-2xl transition-all duration-200 cursor-pointer group relative"
                 >
+                  {product.isSpecialEdition && (
+                    <span className="absolute top-2 left-2 bg-gold-500 text-black px-3 py-1 rounded-full text-xs font-bold shadow-lg z-20">Special Edition</span>
+                  )}
                   <div onClick={() => {
                     setModalProduct(matchingProduct);
                     setModalCarat(selectedCarat || matchingProduct.carats[0] || "");
