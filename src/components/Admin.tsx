@@ -276,6 +276,16 @@ const Admin: React.FC = () => {
   // Upload or update special edition
   const handleSpecialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if we're adding a new product (not editing existing)
+    if (!specialForm.id) {
+      // Check if we've reached the 50 product limit
+      if (specialEditions.length >= 50) {
+        alert('Maximum limit of 50 special edition products reached. Please delete some products before adding new ones.');
+        return;
+      }
+    }
+    
     setUploadingSpecial(true);
     let imageUrls = specialForm.images || [];
     try {
@@ -474,7 +484,7 @@ const Admin: React.FC = () => {
             className={`px-4 py-2 rounded-t font-bold ${activeTab === 'specialEditions' ? 'bg-gold-500 text-black' : 'bg-black text-gold-400 border-b-2 border-gold-500'}`}
             onClick={() => setActiveTab('specialEditions')}
           >
-            Special Editions
+            Special Editions ({specialEditions.length}/50)
           </button>
         </div>
 
@@ -804,6 +814,24 @@ const Admin: React.FC = () => {
         {activeTab === 'specialEditions' && (
           <div className="mb-10 bg-black border border-gold-500 rounded-xl p-4 shadow">
             <h2 className="text-lg font-bold mb-3 text-gold-400">Special Edition Rings</h2>
+            
+            {/* Progress indicator */}
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-gold-400 font-semibold">Special Editions Progress</span>
+                <span className="text-gold-400">{specialEditions.length} / 50 products</span>
+              </div>
+              <div className="w-full h-3 bg-gold-900 rounded">
+                <div
+                  className="h-3 bg-gold-500 rounded transition-all"
+                  style={{ width: `${(specialEditions.length / 50) * 100}%` }}
+                />
+              </div>
+              {specialEditions.length >= 50 && (
+                <div className="text-red-400 text-sm mt-1">Maximum limit reached. Delete some products to add new ones.</div>
+              )}
+            </div>
+            
             <form onSubmit={handleSpecialSubmit} className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
               <input
                 type="text"
@@ -883,7 +911,7 @@ const Admin: React.FC = () => {
             <div className="flex flex-wrap gap-6">
               {specialEditions.map(s => (
                 <div key={s.id} className="relative bg-black border border-gold-500 rounded-xl p-4 w-64 flex flex-col items-center">
-                  <img src={s.image} alt={s.name} className="w-40 h-40 object-cover rounded mb-2 border border-gold-400" />
+                  <img src={s.images && s.images.length > 0 ? s.images[0] : s.mainImage || ''} alt={s.name} className="w-40 h-40 object-cover rounded mb-2 border border-gold-400" />
                   <div className="text-gold-400 font-bold text-lg mb-1">{s.name}</div>
                   <div className="text-gold-500 font-bold text-xl mb-1">${s.price}</div>
                   {s.discountPercent > 0 && (

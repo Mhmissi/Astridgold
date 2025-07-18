@@ -133,11 +133,10 @@ function App() {
             element={
               <>
                 <Hero />
-                <AttractImages />
-                <FeaturedProducts />
                 <Services />
                 <LuxuryWatches />
                 <About />
+                <FeaturedProducts />
                 <Valuation />
                 <Testimonials />
                 <Contact />

@@ -58,6 +58,7 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
   const [sortOrder, setSortOrder] = useState<'low' | 'high'>('low');
   const [showDiscountedOnly, setShowDiscountedOnly] = useState(false);
   const [showSpecialEditionsOnly, setShowSpecialEditionsOnly] = useState(false);
+  const [sortByDate, setSortByDate] = useState<'recent' | 'oldest'>('recent');
   const [specialEditions, setSpecialEditions] = useState<any[]>([]);
 
   useEffect(() => {
@@ -79,22 +80,36 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
     setSearch("");
     setShowDiscountedOnly(false);
     setShowSpecialEditionsOnly(false);
+    setSortByDate('recent');
   };
 
   // Remove the separate Special Editions section
   // Merge specialEditions into the main product list for display
   const allProducts = [...products, ...specialEditions.map(s => ({ ...s, isSpecialEdition: true }))];
 
-  const filteredProducts = allProducts.filter((product) => {
-    const matchesShape = !selectedShape || product.diamondShape === selectedShape;
-    const matchesDesign = !selectedDesign || product.ringDesign === selectedDesign;
-    const matchesMetal = !selectedMetal || product.ringMetal === selectedMetal;
-    const matchesCarat = !selectedCarat || product.carats.includes(selectedCarat);
-    const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase());
-    if (showDiscountedOnly && !(product.discountPercent && product.discountPercent > 0)) return false;
-    if (showSpecialEditionsOnly && !product.isSpecialEdition) return false;
-    return matchesShape && matchesDesign && matchesMetal && matchesCarat && matchesSearch;
-  });
+  // Filter and sort products
+  const filteredProducts = allProducts
+    .filter(product => {
+      // Apply all existing filters
+      const matchesDiscounted = !showDiscountedOnly || (product.discountPercent && product.discountPercent > 0);
+      const matchesSpecial = !showSpecialEditionsOnly || product.isSpecialEdition;
+      return matchesDiscounted && matchesSpecial;
+    })
+    .sort((a, b) => {
+      // Sort by date first (if date sorting is selected)
+      if (sortByDate === 'recent') {
+        // Sort by most recent first (assuming products have timestamps or IDs that indicate order)
+        return b.id.localeCompare(a.id);
+      } else if (sortByDate === 'oldest') {
+        // Sort by oldest first
+        return a.id.localeCompare(b.id);
+      }
+      
+      // Then apply price sorting
+      const priceA = getComparablePrice(a, sortOrder);
+      const priceB = getComparablePrice(b, sortOrder);
+      return sortOrder === 'low' ? priceA - priceB : priceB - priceA;
+    });
 
   const getComparablePrice = (product: Product, order: 'low' | 'high') => {
     if (product.prices && typeof product.prices === 'object') {
@@ -154,46 +169,6 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
         {/* Top Filter Bar */}
         <div className="flex flex-wrap gap-4 mb-6 items-center justify-between">
           <div className="flex flex-wrap gap-4 items-center flex-1">
-            <select
-              value={selectedShape || ''}
-              onChange={e => setSelectedShape(e.target.value || null)}
-              className="bg-black text-gold-400 border border-gold-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
-            >
-              <option value="">Diamond Shape</option>
-              {diamondShapes.map(shape => (
-                <option key={shape} value={shape}>{shape}</option>
-              ))}
-            </select>
-            <select
-              value={selectedDesign || ''}
-              onChange={e => setSelectedDesign(e.target.value || null)}
-              className="bg-black text-gold-400 border border-gold-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
-            >
-              <option value="">Ring Design</option>
-              {ringDesigns.map(design => (
-                <option key={design} value={design}>{design}</option>
-              ))}
-            </select>
-            <select
-              value={selectedMetal || ''}
-              onChange={e => setSelectedMetal(e.target.value || null)}
-              className="bg-black text-gold-400 border border-gold-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
-            >
-              <option value="">Ring Metal</option>
-              {ringMetals.map(metal => (
-                <option key={metal} value={metal}>{metal}</option>
-              ))}
-            </select>
-            <select
-              value={selectedCarat || ''}
-              onChange={e => setSelectedCarat(e.target.value || null)}
-              className="bg-black text-gold-400 border border-gold-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
-            >
-              <option value="">Carat</option>
-              {carats.map(carat => (
-                <option key={carat} value={carat}>{carat}</option>
-              ))}
-            </select>
             <button
               className="text-gold-400 underline text-sm ml-2"
               onClick={clearAllFilters}
@@ -201,51 +176,55 @@ const Shop: React.FC<ShopProps> = ({ cart, onAddToCart }) => {
               Clear All
             </button>
           </div>
-          <div className="flex-1 flex justify-end min-w-[200px] mt-2 md:mt-0">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="px-4 py-2 border border-gold-400 rounded-full focus:outline-none focus:ring-2 focus:ring-gold-400 w-full max-w-xs bg-black text-gold-400 placeholder-gold-400"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-gold-400 font-serif">Sort by Price:</label>
-            <select
-              value={sortOrder}
-              onChange={e => setSortOrder(e.target.value as 'low' | 'high')}
-              className="bg-black border border-gold-400 text-gold-400 rounded px-2 py-1"
-            >
-              <option value="low">Low to High</option>
-              <option value="high">High to Low</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showDiscountedOnly}
-              onChange={e => setShowDiscountedOnly(e.target.checked)}
-              id="discountedOnly"
-              className="accent-gold-500 w-5 h-5"
-            />
-            <label htmlFor="discountedOnly" className="text-gold-400 font-serif text-lg font-bold flex items-center gap-1">
-              On Sale Only
-              {showDiscountedOnly && <span className="bg-red-500 text-white px-2 py-0.5 rounded text-xs font-bold ml-1">SALE</span>}
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showSpecialEditionsOnly}
-              onChange={e => setShowSpecialEditionsOnly(e.target.checked)}
-              id="specialEditionsOnly"
-              className="accent-gold-500 w-5 h-5"
-            />
-            <label htmlFor="specialEditionsOnly" className="text-gold-400 font-serif text-lg font-bold flex items-center gap-1">
-              Special Editions Only
-              {showSpecialEditionsOnly && <span className="bg-gold-500 text-black px-2 py-0.5 rounded text-xs font-bold ml-1">SPECIAL</span>}
-            </label>
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <label className="text-gold-400 font-serif">Sort by:</label>
+              <select
+                value={sortOrder}
+                onChange={e => setSortOrder(e.target.value as 'low' | 'high')}
+                className="bg-black border border-gold-400 text-gold-400 rounded px-2 py-1"
+              >
+                <option value="low">Low price to high</option>
+                <option value="high">High price to low</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-gold-400 font-serif">Sort by:</label>
+              <select
+                value={sortByDate}
+                onChange={e => setSortByDate(e.target.value as 'recent' | 'oldest')}
+                className="bg-black border border-gold-400 text-gold-400 rounded px-2 py-1"
+              >
+                <option value="recent">Recent</option>
+                <option value="oldest">Oldest</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 order-3 md:order-none">
+              <input
+                type="checkbox"
+                checked={showDiscountedOnly}
+                onChange={e => setShowDiscountedOnly(e.target.checked)}
+                id="discountedOnly"
+                className="accent-gold-500 w-5 h-5"
+              />
+              <label htmlFor="discountedOnly" className="text-gold-400 font-serif text-lg font-bold flex items-center gap-1">
+                On Sale Only
+                {showDiscountedOnly && <span className="bg-red-500 text-white px-2 py-0.5 rounded text-xs font-bold ml-1">SALE</span>}
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showSpecialEditionsOnly}
+                onChange={e => setShowSpecialEditionsOnly(e.target.checked)}
+                id="specialEditionsOnly"
+                className="accent-gold-500 w-5 h-5"
+              />
+              <label htmlFor="specialEditionsOnly" className="text-gold-400 font-serif text-lg font-bold flex items-center gap-1">
+                Special Editions Only
+                {showSpecialEditionsOnly && <span className="bg-gold-500 text-black px-2 py-0.5 rounded text-xs font-bold ml-1">SPECIAL</span>}
+              </label>
+            </div>
           </div>
         </div>
         {/* Product Grid */}

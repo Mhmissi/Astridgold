@@ -1,5 +1,6 @@
 import React from 'react';
 import { MapPin, Shield, Clock } from 'lucide-react';
+import AttractImages from './AttractImages';
 
 const About = () => {
   return (
@@ -50,13 +51,13 @@ const About = () => {
             </div>
           </div>
 
+          {/* Photo Section */}
           <div className="relative">
             <div className="relative z-10 bg-gradient-to-br from-gold-500/20 to-gold-600/20 backdrop-blur-sm border border-gold-500/30 rounded-lg p-8">
-              <img 
-                src="https://images.pexels.com/photos/1232931/pexels-photo-1232931.jpeg?auto=compress&cs=tinysrgb&w=800"
-                alt="Luxury jewelry and gold"
-                className="w-full h-64 object-cover rounded-lg mb-6"
-              />
+              {/* Replace static image with AttractImages carousel */}
+              <div className="mb-6">
+                <AttractImages />
+              </div>
               <div className="text-center">
                 <h3 className="text-2xl font-bold font-serif text-white mb-4">Visit Our Showroom</h3>
                 <p className="text-gray-300 font-body mb-4">
